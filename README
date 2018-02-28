@@ -284,6 +284,12 @@ Description:	This directive determines whether an optional authorization directi
 		NOTE: This directive is unavailable with Apache 2.4. See the RequireAny,
 		RequireNone, and RequireAll directives instead.
 
+Directive:	CASGatewayCookieDomain
+Default:	NULL
+Description:	Specify the value for the 'Domain=' parameter in the Set-Cookie header
+		when setting the CASGatewayCookie.
+
+
 Valid Directory/.htaccess Directives
 ------------------------------------
 Directive:	CASScope
