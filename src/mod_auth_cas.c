@@ -539,6 +539,20 @@ char *getCASRenew(request_rec *r)
 	return rv;
 }
 
+char *getCASMethod(request_rec *r)
+{
+	char *rv = ""; 
+	char *cas_method = (char *) apr_table_get(r->headers_in, "CAS_METHOD");
+	
+	ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, apr_pstrcat(r->pool, "getCASMethod - cas_method=", cas_method, NULL));
+	
+	if(cas_method != NULL) {
+		rv = apr_pstrcat(r->pool, "&method=", cas_method, NULL);
+	}
+	ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, apr_pstrcat(r->pool, "getCASMethod - rv=", rv, NULL));
+	return rv;
+}
+
 char *getCASLoginURL(request_rec *r, cas_cfg *c)
 {
 	apr_uri_t test;
@@ -609,6 +623,7 @@ void redirectRequest(request_rec *r, cas_cfg *c)
 	char *loginURL = getCASLoginURL(r, c);
 	char *renew = getCASRenew(r);
 	char *gateway = getCASGateway(r);
+	char *method = getCASMethod(r);
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering redirectRequest()");
@@ -618,7 +633,7 @@ void redirectRequest(request_rec *r, cas_cfg *c)
 		return;
 	}
 
-	destination = apr_pstrcat(r->pool, loginURL, "?service=", service, renew, gateway, NULL);
+	destination = apr_pstrcat(r->pool, loginURL, "?service=", service, renew, gateway, method, NULL);
 
 	apr_table_add(r->headers_out, "Location", destination);
 

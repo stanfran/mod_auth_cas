@@ -207,6 +207,7 @@ char *escapeString(const request_rec *r, const char *str);
 char *urlEncode(const request_rec *r, const char *str, const char *charsToEncode);
 char *getCASGateway(request_rec *r);
 char *getCASRenew(request_rec *r);
+char *getCASMethod(request_rec *r);
 char *getCASLoginURL(request_rec *r, cas_cfg *c);
 char *getCASService(const request_rec *r, const cas_cfg *c);
 void redirectRequest(request_rec *r, cas_cfg *c);
