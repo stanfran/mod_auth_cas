@@ -289,6 +289,11 @@ Default:	NULL
 Description:	Specify the value for the 'Domain=' parameter in the Set-Cookie header
 		when setting the CASGatewayCookie.
 
+Directive:	CASMethodHeader
+Default:	Cas-Method
+Description:	Specify the name of a request header that, when present, will be included
+		as the value of a 'method=' parameter in CAS login URLs.
+
 
 Valid Directory/.htaccess Directives
 ------------------------------------

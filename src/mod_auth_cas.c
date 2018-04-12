@@ -120,6 +120,7 @@ void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 	c->CASValidateSAML = CAS_DEFAULT_VALIDATE_SAML;
 	c->CASAttributeDelimiter = CAS_DEFAULT_ATTRIBUTE_DELIMITER;
 	c->CASAttributePrefix = CAS_DEFAULT_ATTRIBUTE_PREFIX;
+	c->CASMethodHeader = CAS_DEFAULT_METHOD_HEADER;
 #if MODULE_MAGIC_NUMBER_MAJOR < 20120211
 	c->CASAuthoritative = CAS_DEFAULT_AUTHORITATIVE;
 #endif
@@ -159,6 +160,7 @@ void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 #endif
 	c->CASAttributeDelimiter = (apr_strnatcasecmp(add->CASAttributeDelimiter, CAS_DEFAULT_ATTRIBUTE_DELIMITER) != 0 ? add->CASAttributeDelimiter : base->CASAttributeDelimiter);
 	c->CASAttributePrefix = (apr_strnatcasecmp(add->CASAttributePrefix, CAS_DEFAULT_ATTRIBUTE_PREFIX) != 0 ? add->CASAttributePrefix : base->CASAttributePrefix);
+	c->CASMethodHeader = (apr_strnatcasecmp(add->CASMethodHeader, CAS_DEFAULT_METHOD_HEADER) != 0 ? add->CASMethodHeader : base->CASMethodHeader);
 
 	/* if add->CASLoginURL == NULL, we want to copy base -- otherwise, copy the one from add, and so on and so forth */
 	if(memcmp(&add->CASLoginURL, &test, sizeof(apr_uri_t)) == 0)
@@ -380,6 +382,26 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 			}
 			c->CASGatewayCookieDomain = apr_pstrdup(cmd->pool, value);
 		break;
+		case cmd_method_header:
+			limit = strlen(value);
+			for(sz = 0; sz < limit; sz++) {
+				d = value[sz];
+				if(d < '!' 
+					|| d == '"' 
+					|| d == '(' 
+					|| d == ')'
+					|| d == ','
+					|| d == '/'
+					|| (d >= ':' && d <= '@')
+					|| (d >= '[' && d <= ']')
+					|| d == '{'
+					|| d == '}'
+					|| d > '~') {
+						return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid character (%c) in CASMethodHeader", d));
+				}
+			}
+			c->CASMethodHeader = apr_pstrdup(cmd->pool, value);
+		break;
 		case cmd_cookie_httponly:
 			if(apr_strnatcasecmp(value, "On") == 0)
 				c->CASCookieHttpOnly = TRUE;
@@ -539,17 +561,14 @@ char *getCASRenew(request_rec *r)
 	return rv;
 }
 
-char *getCASMethod(request_rec *r)
+char *getCASMethod(request_rec *r, const cas_cfg *c)
 {
-	char *rv = ""; 
-	char *cas_method = (char *) apr_table_get(r->headers_in, "CAS_METHOD");
-	
-	ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, apr_pstrcat(r->pool, "getCASMethod - cas_method=", cas_method, NULL));
+	char *rv = "";
+	char *cas_method = (char *) apr_table_get(r->headers_in, c->CASMethodHeader);
 	
 	if(cas_method != NULL) {
 		rv = apr_pstrcat(r->pool, "&method=", cas_method, NULL);
 	}
-	ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, apr_pstrcat(r->pool, "getCASMethod - rv=", rv, NULL));
 	return rv;
 }
 
@@ -623,7 +642,7 @@ void redirectRequest(request_rec *r, cas_cfg *c)
 	char *loginURL = getCASLoginURL(r, c);
 	char *renew = getCASRenew(r);
 	char *gateway = getCASGateway(r);
-	char *method = getCASMethod(r);
+	char *method = getCASMethod(r, c);
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering redirectRequest()");
@@ -2882,6 +2901,7 @@ const command_rec cas_cmds [] = {
 #if MODULE_MAGIC_NUMBER_MAJOR < 20120211
 	AP_INIT_TAKE1("CASAuthoritative", cfg_readCASParameter, (void *) cmd_authoritative, RSRC_CONF, "Set 'On' to reject if access isn't allowed based on our rules; 'Off' (default) to allow checking against other modules too."),
 #endif
+	AP_INIT_TAKE1("CASMethodHeader", cfg_readCASParameter, (void *) cmd_method_header, RSRC_CONF, "Name of request header to activate CAS login method parameter"),
 	AP_INIT_TAKE1(0, 0, 0, 0, 0)
 };
 

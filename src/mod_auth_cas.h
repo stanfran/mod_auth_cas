@@ -98,6 +98,8 @@
 #define CAS_DEFAULT_SCRUB_REQUEST_HEADERS NULL
 #define CAS_DEFAULT_SSO_ENABLED FALSE
 #define CAS_DEFAULT_AUTHORITATIVE FALSE
+#define CAS_DEFAULT_METHOD_HEADER "Cas-Method"
+
 
 #define CAS_MAX_RESPONSE_SIZE 65536
 #define CAS_MAX_ERROR_SIZE 1024
@@ -131,6 +133,7 @@ typedef struct cas_cfg {
 	char *CASGatewayCookieDomain;
 	char *CASAttributeDelimiter;
 	char *CASAttributePrefix;
+	char *CASMethodHeader;
 	apr_uri_t CASLoginURL;
 	apr_uri_t CASValidateURL;
 	apr_uri_t CASProxyValidateURL;
@@ -169,7 +172,7 @@ typedef enum {
 	cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy, cmd_session_timeout,
 	cmd_idle_timeout, cmd_cache_interval, cmd_cookie_domain, cmd_cookie_httponly,
 	cmd_sso, cmd_validate_saml, cmd_attribute_delimiter, cmd_attribute_prefix,
-	cmd_root_proxied_as, cmd_authoritative, cmd_gateway_cookie_domain
+	cmd_root_proxied_as, cmd_authoritative, cmd_gateway_cookie_domain, cmd_method_header
 } valid_cmds;
 
 module AP_MODULE_DECLARE_DATA auth_cas_module;
@@ -207,7 +210,7 @@ char *escapeString(const request_rec *r, const char *str);
 char *urlEncode(const request_rec *r, const char *str, const char *charsToEncode);
 char *getCASGateway(request_rec *r);
 char *getCASRenew(request_rec *r);
-char *getCASMethod(request_rec *r);
+char *getCASMethod(request_rec *r, const cas_cfg *c);
 char *getCASLoginURL(request_rec *r, cas_cfg *c);
 char *getCASService(const request_rec *r, const cas_cfg *c);
 void redirectRequest(request_rec *r, cas_cfg *c);
