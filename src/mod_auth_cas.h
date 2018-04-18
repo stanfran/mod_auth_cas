@@ -195,6 +195,7 @@ apr_byte_t isSSL(const request_rec *r);
 apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_entry *cache);
 void CASCleanCache(request_rec *r, cas_cfg *c);
 apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache, apr_byte_t exists);
+char *buildCacheEntry(request_rec *r, cas_cache_entry *cache, cas_cfg *c);
 char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, char *ticket);
 apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **user, cas_saml_attr **attrs);
 size_t cas_curl_write(const void *ptr, size_t size, size_t nmemb, void *stream);

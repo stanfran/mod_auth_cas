@@ -1239,7 +1239,7 @@ void CASCleanCache(request_rec *r, cas_cfg *c)
 
 apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache, apr_byte_t exists)
 {
-	char *path;
+	char *path, *cache_data;
 	apr_file_t *f;
 	apr_off_t begin = 0;
 	int cnt = 0;
@@ -1252,12 +1252,16 @@ apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache
 
 	path = apr_psprintf(r->pool, "%s%s", c->CASCookiePath, name);
 
+	/* Build the cache data before dealing with the file system. */
+	cache_data = buildCacheEntry(r, cache, c);
+
 	if(exists == FALSE) {
 		if((i = apr_file_open(&f, path, APR_FOPEN_CREATE|APR_FOPEN_WRITE|APR_EXCL, APR_FPROT_UREAD|APR_FPROT_UWRITE, r->pool)) != APR_SUCCESS) {
 			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Cookie file '%s' could not be created: %s", path, apr_strerror(i, name, strlen(name)));
 			return FALSE;
 		}
 	} else {
+
 		for(cnt = 0; ; cnt++) {
 			/* gracefully handle broken file system permissions by trying 3 times to create the file, otherwise failing */
 			if(cnt >= 3) {
@@ -1283,33 +1287,36 @@ apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache
 		apr_file_trunc(f, begin);
 	}
 
-	/* this is ultra-ghetto, but the APR really doesn't provide any facilities for easy DOM-style XML creation. */
-	apr_file_printf(f, "<cacheEntry xmlns=\"http://uconn.edu/cas/mod_auth_cas\">\n");
-	apr_file_printf(f, "<user>%s</user>\n", apr_xml_quote_string(r->pool, cache->user, TRUE));
-	apr_file_printf(f, "<issued>%" APR_TIME_T_FMT "</issued>\n", cache->issued);
-	apr_file_printf(f, "<lastactive>%" APR_TIME_T_FMT "</lastactive>\n", cache->lastactive);
-	apr_file_printf(f, "<path>%s</path>\n", apr_xml_quote_string(r->pool, cache->path, TRUE));
-	apr_file_printf(f, "<ticket>%s</ticket>\n", apr_xml_quote_string(r->pool, cache->ticket, TRUE));
-	if(cache->attrs != NULL) {
-		cas_saml_attr *a = cache->attrs;
-		apr_file_printf(f, "<attributes>\n");
-		while(a != NULL) {
-			cas_saml_attr_val *av = a->values;
-			apr_file_printf(f, "  <attribute name=\"%s\">\n", apr_xml_quote_string(r->pool, a->attr, TRUE));
-			while(av != NULL) {
-				apr_file_printf(f, "	<value>%s</value>\n", apr_xml_quote_string(r->pool, av->value, TRUE));
-				av = av->next;
-			}
-			apr_file_printf(f, "  </attribute>\n");
-			a = a->next;
-		}
-		apr_file_printf(f, "</attributes>\n");
-	}
-	if(cache->renewed != FALSE)
-		apr_file_printf(f, "<renewed />\n");
-	if(cache->secure != FALSE)
-		apr_file_printf(f, "<secure />\n");
-	apr_file_printf(f, "</cacheEntry>\n");
+	/* Write cache data and unlock the file as quickly as possible. */
+	apr_file_printf(f, cache_data);
+
+	// /* this is ultra-ghetto, but the APR really doesn't provide any facilities for easy DOM-style XML creation. */
+	// apr_file_printf(f, "<cacheEntry xmlns=\"http://uconn.edu/cas/mod_auth_cas\">\n");
+	// apr_file_printf(f, "<user>%s</user>\n", apr_xml_quote_string(r->pool, cache->user, TRUE));
+	// apr_file_printf(f, "<issued>%" APR_TIME_T_FMT "</issued>\n", cache->issued);
+	// apr_file_printf(f, "<lastactive>%" APR_TIME_T_FMT "</lastactive>\n", cache->lastactive);
+	// apr_file_printf(f, "<path>%s</path>\n", apr_xml_quote_string(r->pool, cache->path, TRUE));
+	// apr_file_printf(f, "<ticket>%s</ticket>\n", apr_xml_quote_string(r->pool, cache->ticket, TRUE));
+	// if(cache->attrs != NULL) {
+	// 	cas_saml_attr *a = cache->attrs;
+	// 	apr_file_printf(f, "<attributes>\n");
+	// 	while(a != NULL) {
+	// 		cas_saml_attr_val *av = a->values;
+	// 		apr_file_printf(f, "  <attribute name=\"%s\">\n", apr_xml_quote_string(r->pool, a->attr, TRUE));
+	// 		while(av != NULL) {
+	// 			apr_file_printf(f, "	<value>%s</value>\n", apr_xml_quote_string(r->pool, av->value, TRUE));
+	// 			av = av->next;
+	// 		}
+	// 		apr_file_printf(f, "  </attribute>\n");
+	// 		a = a->next;
+	// 	}
+	// 	apr_file_printf(f, "</attributes>\n");
+	// }
+	// if(cache->renewed != FALSE)
+	// 	apr_file_printf(f, "<renewed />\n");
+	// if(cache->secure != FALSE)
+	// 	apr_file_printf(f, "<secure />\n");
+	// apr_file_printf(f, "</cacheEntry>\n");
 
 	if(lock != FALSE) {
 		if(cas_flock(f, LOCK_UN, r)) {
@@ -1322,6 +1329,47 @@ apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache
 	apr_file_close(f);
 
 	return TRUE;
+}
+
+char *buildCacheEntry(request_rec *r, cas_cache_entry *cache, cas_cfg *c) {
+	char *out;
+
+	if(c->CASDebug) {
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: buildCacheEntry");
+	}
+	/* this is ultra-ghetto, but the APR really doesn't provide any facilities for easy DOM-style XML creation. */	
+	out = apr_psprintf(r->pool, "<cacheEntry xmlns=\"http://uconn.edu/cas/mod_auth_cas\">\n");
+	out = apr_pstrcat(r->pool, out, apr_psprintf(r->pool, "<user>%s</user>\n", apr_xml_quote_string(r->pool, cache->user, TRUE)), NULL);
+	out = apr_pstrcat(r->pool, out, apr_psprintf(r->pool, "<issued>%" APR_TIME_T_FMT "</issued>\n", cache->issued), NULL);
+	out = apr_pstrcat(r->pool, out, apr_psprintf(r->pool, "<lastactive>%" APR_TIME_T_FMT "</lastactive>\n", cache->lastactive), NULL);
+	out = apr_pstrcat(r->pool, out, apr_psprintf(r->pool, "<path>%s</path>\n", apr_xml_quote_string(r->pool, cache->path, TRUE)), NULL);
+	out = apr_pstrcat(r->pool, out, apr_psprintf(r->pool, "<ticket>%s</ticket>\n", apr_xml_quote_string(r->pool, cache->ticket, TRUE)), NULL);
+	if(cache->attrs != NULL) {
+		cas_saml_attr *a = cache->attrs;
+		out = apr_pstrcat(r->pool, out, apr_psprintf(r->pool, "<attributes>\n"), NULL);
+		while(a != NULL) {
+			cas_saml_attr_val *av = a->values;
+			out = apr_pstrcat(r->pool, out, apr_psprintf(r->pool, "  <attribute name=\"%s\">\n", apr_xml_quote_string(r->pool, a->attr, TRUE)), NULL);
+			while(av != NULL) {
+				out = apr_pstrcat(r->pool, out, apr_psprintf(r->pool, "	<value>%s</value>\n", apr_xml_quote_string(r->pool, av->value, TRUE)), NULL);
+				av = av->next;
+			}
+			out = apr_pstrcat(r->pool, out, apr_psprintf(r->pool, "  </attribute>\n"), NULL);
+			a = a->next;
+		}
+		out = apr_pstrcat(r->pool, out, apr_psprintf(r->pool, "</attributes>\n"), NULL);
+	}
+	if(cache->renewed != FALSE)
+		out = apr_pstrcat(r->pool, out, apr_psprintf(r->pool, "<renewed />\n"), NULL);
+	if(cache->secure != FALSE)
+		out = apr_pstrcat(r->pool, out, apr_psprintf(r->pool, "<secure />\n"), NULL);
+	out = apr_pstrcat(r->pool, out, apr_psprintf(r->pool, "</cacheEntry>\n"), NULL);
+
+	if(c->CASDebug) {
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: buildCacheEntry - out: %s", out);
+	}
+
+	return out;
 }
 
 char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, char *ticket)
