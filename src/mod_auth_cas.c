@@ -1445,7 +1445,7 @@ char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, char *ti
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Cookie '%s' created for user '%s'", rv, user);
 
-	if (writeCASLastActiveEntry(r, rv, e.lastactive, FALSE, c) == FALSE)
+	if(writeCASLastActiveEntry(r, rv, e.lastactive, FALSE, c) == FALSE)
 		ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, "Failed to create last-active status file '%s'.lastactive for user '%s'", rv, user);
 
 	buf = (char *) ap_md5_binary(r->pool, (const unsigned char *) ticket, (int) strlen(ticket));
@@ -1875,7 +1875,7 @@ apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **use
 
 	/* attempt to save last-active time in separate file to avoid locking issues */
 	cache.lastactive = apr_time_now();
-	if(writeCASLastActiveEntry(r, cookie, cache.lastactive, TRUE) == FALSE && c->CASDebug) {
+	if(writeCASLastActiveEntry(r, cookie, cache.lastactive, TRUE, c) == FALSE && c->CASDebug) {
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Could not update last-active entry for '%s'.  Failing back to cache file", cookie);
 		
 		if(writeCASCacheEntry(r, cookie, &cache, TRUE) == FALSE && c->CASDebug)
