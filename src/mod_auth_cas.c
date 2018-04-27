@@ -1869,6 +1869,9 @@ apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **use
 		}
 	}
 
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Cookie '%s'", cookie);
+
 	/* set the user */
 	*user = apr_pstrndup(r->pool, cache.user, strlen(cache.user));
 	*attrs = cas_saml_attr_pdup(r->pool, cache.attrs);
