@@ -1081,7 +1081,7 @@ apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_en
 		}
 	}
 	apr_file_close(f);
-	if (readCASLastActiveFile(r, c, name, &cache) == FALSE && c->CASDebug)  
+	if (readCASLastActiveFile(r, c, name, cache) == FALSE && c->CASDebug)  
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Failed to read last-active timestamp from %s.lastactive", name);
 
 	return TRUE;
@@ -1092,6 +1092,7 @@ apr_byte_t readCASLastActiveFile(request_rec *r, cas_cfg *c, char *name, cas_cac
 	apr_time_t last_active;
 	apr_off_t begin = 0;
 	apr_file_t *f;
+	char *path;
 	char line[64];
 
 	if(c->CASDebug)
