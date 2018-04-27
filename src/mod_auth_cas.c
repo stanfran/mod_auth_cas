@@ -1126,6 +1126,9 @@ apr_byte_t readCASLastActiveFile(request_rec *r, cas_cfg *c, char *name, cas_cac
 	}
 	apr_file_close(f);
 
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Last active status file '%s.lastactive' data: '%s'", name, line);
+
 	if(sscanf(line, "%" APR_TIME_T_FMT, &last_active) != 1) { /* corrupt file */
 		if(c->CASDebug)
 			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Last active status file '%s.lastactive' is corrupt", name);
