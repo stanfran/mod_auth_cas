@@ -190,8 +190,10 @@ apr_table_t *cas_scrub_headers(apr_pool_t *p, const char *const attr_prefix,
 char *normalizeHeaderName(const request_rec *r, const char *str);
 apr_byte_t isSSL(const request_rec *r);
 apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_entry *cache);
+apr_byte_t readCASLastActiveFile(request_rec *r, cas_cfg *c, char *name, cas_cache_entry *cache);
 void CASCleanCache(request_rec *r, cas_cfg *c);
 apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache, apr_byte_t exists);
+apr_byte_t writeCASLastActiveEntry(request_rec *r, char *name, apr_time_t lastactive, apr_byte_t exists, cas_cfg *c);
 char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, char *ticket);
 apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **user, cas_saml_attr **attrs);
 size_t cas_curl_write(const void *ptr, size_t size, size_t nmemb, void *stream);

@@ -1081,7 +1081,58 @@ apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_en
 		}
 	}
 	apr_file_close(f);
+	if (readCASLastActiveFile(r, c, name, &cache) == FALSE && c->CASDebug)  
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Failed to read last-active timestamp from %s.lastactive", name);
+
 	return TRUE;
+}
+
+apr_byte_t readCASLastActiveFile(request_rec *r, cas_cfg *c, char *name, cas_cache_entry *cache) {
+
+	apr_time_t last_active;
+	apr_off_t begin = 0;
+	apr_file_t *f;
+	char line[64];
+
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering readCASLastActiveFile()");
+
+	/* open the file if it exists and make sure that the ticket has not expired */
+	path = apr_psprintf(r->pool, "%s%s.lastactive", c->CASCookiePath, name);
+
+	if(apr_file_open(&f, path, APR_FOPEN_READ, APR_OS_DEFAULT, r->pool) != APR_SUCCESS) {
+		if(c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Last active status file '%s.lastactive' could not be opened", name);
+		return FALSE;
+	}
+
+	if(cas_flock(f, LOCK_SH, r)) {
+		if(c->CASDebug) {
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not obtain shared lock on %s.lastactive", name);
+		}
+		apr_file_close(f);
+		return FALSE;
+	}
+
+	/* read the last-active time stamp */
+	apr_file_seek(f, APR_SET, &begin);
+	apr_file_gets(line, sizeof(line), f);
+
+	if(cas_flock(f, LOCK_UN, r)) {
+		if(c->CASDebug) {
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not release exclusive lock on %s", path);
+		}
+	}
+	apr_file_close(f);
+
+	if(sscanf(line, "%" APR_TIME_T_FMT, &last_active) != 1) { /* corrupt file */
+		if(c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Last active status file '%s.lastactive' is corrupt", name);
+		return FALSE;
+	}
+	cache->lastactive = last_active;
+	return TRUE;
+
 }
 
 void CASCleanCache(request_rec *r, cas_cfg *c)
@@ -1290,6 +1341,69 @@ apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache
 	return TRUE;
 }
 
+apr_byte_t writeCASLastActiveEntry(request_rec *r, char *name, apr_time_t lastactive, apr_byte_t exists, cas_cfg *c)
+{
+	char *path;
+	apr_file_t *f;
+	apr_off_t begin = 0;
+	int cnt = 0;
+	apr_status_t i = APR_EGENERAL;
+	apr_byte_t lock = FALSE;
+
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering writeCASLastActiveEntry()");
+
+	path = apr_psprintf(r->pool, "%s%s.lastactive", c->CASCookiePath, name);
+
+	if(exists == FALSE) {
+		if((i = apr_file_open(&f, path, APR_FOPEN_CREATE|APR_FOPEN_WRITE|APR_EXCL, APR_FPROT_UREAD|APR_FPROT_UWRITE, r->pool)) != APR_SUCCESS) {
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Last active status file '%s' could not be created: %s", path, apr_strerror(i, name, strlen(name)));
+			return FALSE;
+		}
+	} else {
+
+		for(cnt = 0; ; cnt++) {
+			/* gracefully handle broken file system permissions by trying 3 times to create the file, otherwise failing */
+			if(cnt >= 3) {
+				ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Last active status file '%s' could not be opened: %s", path, apr_strerror(i, name, strlen(name)));
+				return FALSE;
+			}
+			if(apr_file_open(&f, path, APR_FOPEN_READ|APR_FOPEN_WRITE, APR_FPROT_UREAD|APR_FPROT_UWRITE, r->pool) == APR_SUCCESS)
+				break;
+			else
+				apr_sleep(1000);
+		}
+
+		/* update the file with a new idle time if a write lock can be obtained */
+		if(cas_flock(f, LOCK_EX, r)) {
+			if(c->CASDebug) {
+				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not obtain exclusive lock on %s", name);
+			}
+			apr_file_close(f);
+			return FALSE;
+		} else
+			lock = TRUE;
+		apr_file_seek(f, APR_SET, &begin);
+		apr_file_trunc(f, begin);
+	}
+
+	/* Write last active data and unlock the file as quickly as possible. */
+	apr_file_printf(f, "%" APR_TIME_T_FMT "", lastactive);
+
+	if(lock != FALSE) {
+		if(cas_flock(f, LOCK_UN, r)) {
+			if(c->CASDebug) {
+				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not release exclusive lock on %s", name);
+			}
+		}
+	}
+
+	apr_file_close(f);
+
+	return TRUE;
+
+}
+
 char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, char *ticket)
 {
 	char *path, *buf, *rv;
@@ -1329,6 +1443,9 @@ char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, char *ti
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Cookie '%s' created for user '%s'", rv, user);
+
+	if (writeCASLastActiveEntry(r, rv, e.lastactive, FALSE, c) == FALSE)
+		ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, "Failed to create last-active status file '%s'.lastactive for user '%s'", rv, user);
 
 	buf = (char *) ap_md5_binary(r->pool, (const unsigned char *) ticket, (int) strlen(ticket));
 	path = apr_psprintf(r->pool, "%s.%s", c->CASCookiePath, buf);
@@ -1449,6 +1566,9 @@ void deleteCASCacheFile(request_rec *r, char *cookieName)
 
 	/* delete their cache entry */
 	path = apr_psprintf(r->pool, "%s%s", c->CASCookiePath, cookieName);
+	apr_file_remove(path, r->pool);
+
+	path = apr_psprintf(r->pool, "%s%s.lastactive", c->CASCookiePath, cookieName);
 	apr_file_remove(path, r->pool);
 
 	/* delete the ticket -> cache entry mapping */
@@ -1752,9 +1872,14 @@ apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **use
 	*user = apr_pstrndup(r->pool, cache.user, strlen(cache.user));
 	*attrs = cas_saml_attr_pdup(r->pool, cache.attrs);
 
+	/* attempt to save last-active time in separate file to avoid locking issues */
 	cache.lastactive = apr_time_now();
-	if(writeCASCacheEntry(r, cookie, &cache, TRUE) == FALSE && c->CASDebug)
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Could not update cache entry for '%s'", cookie);
+	if(writeCASLastActiveEntry(r, cookie, cache.lastactive, TRUE) == FALSE && c->CASDebug) {
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Could not update last-active entry for '%s'.  Failing back to cache file", cookie);
+		
+		if(writeCASCacheEntry(r, cookie, &cache, TRUE) == FALSE && c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Could not update cache entry for '%s'", cookie);
+	}
 
 	return TRUE;
 }
