@@ -1350,6 +1350,7 @@ apr_byte_t writeCASLastActiveEntry(request_rec *r, char *name, apr_time_t lastac
 	int cnt = 0;
 	apr_status_t i = APR_EGENERAL;
 	apr_byte_t lock = FALSE;
+	char err_msg[64];
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering writeCASLastActiveEntry()");
@@ -1358,7 +1359,7 @@ apr_byte_t writeCASLastActiveEntry(request_rec *r, char *name, apr_time_t lastac
 
 	if(exists == FALSE) {
 		if((i = apr_file_open(&f, path, APR_FOPEN_CREATE|APR_FOPEN_WRITE|APR_EXCL, APR_FPROT_UREAD|APR_FPROT_UWRITE, r->pool)) != APR_SUCCESS) {
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Last active status file '%s' could not be created: %s", path, apr_strerror(i, name, strlen(name)));
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Last active status file '%s' could not be created: %s", path, apr_strerror(i, err_msg, strlen(err_msg)));
 			return FALSE;
 		}
 	} else {
@@ -1366,7 +1367,7 @@ apr_byte_t writeCASLastActiveEntry(request_rec *r, char *name, apr_time_t lastac
 		for(cnt = 0; ; cnt++) {
 			/* gracefully handle broken file system permissions by trying 3 times to create the file, otherwise failing */
 			if(cnt >= 3) {
-				ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Last active status file '%s' could not be opened: %s", path, apr_strerror(i, name, strlen(name)));
+				ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Last active status file '%s' could not be opened: %s", path, apr_strerror(i, err_msg, strlen(err_msg)));
 				return FALSE;
 			}
 			if(apr_file_open(&f, path, APR_FOPEN_READ|APR_FOPEN_WRITE, APR_FPROT_UREAD|APR_FPROT_UWRITE, r->pool) == APR_SUCCESS)
