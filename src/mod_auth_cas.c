@@ -1880,6 +1880,9 @@ apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **use
 	*user = apr_pstrndup(r->pool, cache.user, strlen(cache.user));
 	*attrs = cas_saml_attr_pdup(r->pool, cache.attrs);
 
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "idle time: %d", apr_time_now() - cache.lastactive);
+
 	/* attempt to save last-active time in separate file to avoid locking issues */
 	cache.lastactive = apr_time_now();
 	if(writeCASLastActiveEntry(r, cookie, cache.lastactive, TRUE, c) == FALSE && c->CASDebug) {
