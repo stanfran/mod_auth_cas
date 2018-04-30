@@ -1880,7 +1880,7 @@ apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **use
 	*user = apr_pstrndup(r->pool, cache.user, strlen(cache.user));
 	*attrs = cas_saml_attr_pdup(r->pool, cache.attrs);
 
-	if(apr_time_now() - cache.lastactive > CAS_IDLE_TIME_SLOP && c->CASDebug)
+	if((apr_time_now() - cache.lastactive) > CAS_IDLE_TIME_SLOP && c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "idle time: %" APR_TIME_T_FMT "", apr_time_now() - cache.lastactive);
 
 	/* attempt to save last-active time in separate file to avoid locking issues */
