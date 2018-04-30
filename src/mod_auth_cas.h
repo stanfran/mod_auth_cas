@@ -111,7 +111,7 @@
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
-#define CAS_IDLE_TIME_SLOP = 60000000 /*  60 seconds in micros */
+#define CAS_IDLE_TIME_SLOP 60000000 /*  60 seconds in micros */
 
 typedef struct cas_cfg {
 	/* non-zero if this is a merged vhost config */
