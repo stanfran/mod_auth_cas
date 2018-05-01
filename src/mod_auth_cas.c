@@ -1134,7 +1134,12 @@ apr_byte_t readCASLastActiveFile(request_rec *r, cas_cfg *c, char *name, cas_cac
 			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Last active status file '%s.lastactive' is corrupt", name);
 		return FALSE;
 	}
-	cache->lastactive = last_active;
+	/* Only use the value from the .lastactive file if that value is greater than the value in the cache file.  
+	   This handles the case in which a previous attempt to write to the .lastactive file failed and the most 
+	   recent lastactive value was written to the cache file instead. */
+	if (cache->lastactive < last_active)
+		cache->lastactive = last_active;
+	
 	return TRUE;
 
 }
@@ -1880,16 +1885,19 @@ apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **use
 	*user = apr_pstrndup(r->pool, cache.user, strlen(cache.user));
 	*attrs = cas_saml_attr_pdup(r->pool, cache.attrs);
 
-	if((apr_time_now() - cache.lastactive) > CAS_IDLE_TIME_SLOP && c->CASDebug)
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "idle time: %" APR_TIME_T_FMT "", apr_time_now() - cache.lastactive);
+	/* only write the cache file if the last-active timestamp is older than CAS_IDLE_TIME_SLOP */
+	if((apr_time_now() - cache.lastactive) > CAS_IDLE_TIME_SLOP) {
+		if(c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "idle time: %" APR_TIME_T_FMT "", apr_time_now() - cache.lastactive);
 
-	/* attempt to save last-active time in separate file to avoid locking issues */
-	cache.lastactive = apr_time_now();
-	if(writeCASLastActiveEntry(r, cookie, cache.lastactive, TRUE, c) == FALSE && c->CASDebug) {
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Could not update last-active entry for '%s'.  Failing back to cache file", cookie);
-		
-		if(writeCASCacheEntry(r, cookie, &cache, TRUE) == FALSE && c->CASDebug)
-			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Could not update cache entry for '%s'", cookie);
+		/* attempt to save last-active time in separate file to avoid locking issues */
+		cache.lastactive = apr_time_now();
+		if(writeCASLastActiveEntry(r, cookie, cache.lastactive, TRUE, c) == FALSE && c->CASDebug) {
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Could not update last-active entry for '%s'.  Failing back to cache file", cookie);
+			
+			if(writeCASCacheEntry(r, cookie, &cache, TRUE) == FALSE && c->CASDebug)
+				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Could not update cache entry for '%s'", cookie);
+		}
 	}
 
 	return TRUE;
