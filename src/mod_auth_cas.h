@@ -214,7 +214,7 @@ char *getCASRenew(request_rec *r);
 char *getCASMethod(request_rec *r, const cas_cfg *c);
 char *getCASLoginURL(request_rec *r, cas_cfg *c);
 char *getCASService(const request_rec *r, const cas_cfg *c);
-void redirectRequest(request_rec *r, cas_cfg *c);
+int redirectRequest(request_rec *r, cas_cfg *c);
 char *getCASTicket(request_rec *r);
 apr_byte_t removeCASParams(request_rec *r);
 int cas_authenticate(request_rec *r);
@@ -253,6 +253,9 @@ authz_status cas_check_authorization(request_rec *r, const char *require_line, c
 
 /* Fancy wrapper around flock() */
 int cas_flock(apr_file_t *fileHandle, int lockOperation, request_rec *r);
+
+/* Check request for X-Requested-With: XMLHttpRequest */
+apr_byte_t isAjax(request_rec *r);
 
 /* apr forward compatibility */
 #ifndef APR_FOPEN_READ

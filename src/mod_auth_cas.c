@@ -635,7 +635,7 @@ char *getCASService(const request_rec *r, const cas_cfg *c)
 
 
 /* utility functions that relate to request handling */
-void redirectRequest(request_rec *r, cas_cfg *c)
+int redirectRequest(request_rec *r, cas_cfg *c)
 {
 	char *destination;
 	char *service = getCASService(r, c);
@@ -654,11 +654,35 @@ void redirectRequest(request_rec *r, cas_cfg *c)
 
 	destination = apr_pstrcat(r->pool, loginURL, "?service=", service, renew, gateway, method, NULL);
 
+	// Ajax requests don't get redirected
+	if (isAjax(r)) {
+		apr_table_add(r->headers_out, "Cas-Status", "Authenticate");
+		apr_table_add(r->headers_out, "Cas-Authenticate", destination);
+
+		if(c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Adding Cas-Status: Authenticate, Cas-Authenticate: %s", destination);
+
+		return HTTP_OK;
+	}
+
+	// Redirect normally
 	apr_table_add(r->headers_out, "Location", destination);
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Adding outgoing header: Location: %s", destination);
 
+	return HTTP_MOVED_TEMPORARILY;
+
+}
+
+apr_byte_t isAjax(request_rec *r)
+{
+	const char *x_requested_with = apr_table_get(r->headers_in, "X-Requested-With");
+
+	if (x_requested_with == NULL || apr_strnatcasecmp(x_requested_with, "XMLHttpRequest") != 0)
+		return FALSE;
+
+	return TRUE;
 }
 
 
@@ -2169,6 +2193,7 @@ int cas_authenticate(request_rec *r)
 	apr_byte_t printPort = FALSE;
 
 	char *newLocation = NULL;
+	int ret_status;
 
 	/* Do nothing if we are not the authenticator */
 	if(ap_auth_type(r) == NULL || apr_strnatcasecmp((const char *) ap_auth_type(r), "cas") != 0)
@@ -2206,8 +2231,7 @@ int cas_authenticate(request_rec *r)
 			if(c->CASDebug)
 				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Gateway initial access (%s)", r->parsed_uri.path);
 			setCASGatewayCookie(r, d->CASGatewayCookie, "TRUE", ssl, CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT);
-			redirectRequest(r, c);
-			return HTTP_MOVED_TEMPORARILY;
+			return redirectRequest(r, c);
 		} else {
 			if(c->CASDebug)
 				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Gateway anonymous authentication (%s)", r->parsed_uri.path);
@@ -2260,8 +2284,19 @@ int cas_authenticate(request_rec *r)
 						newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
 #endif
 				}
-				apr_table_add(r->headers_out, "Location", newLocation);
-				return HTTP_MOVED_TEMPORARILY;
+				if (isAjax(r)) {
+					apr_table_add(r->headers_out, "Cas-Status", "Authenticate");
+					apr_table_add(r->headers_out, "Cas-Authenticate", destination);
+
+					if(c->CASDebug)
+						ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Adding Cas-Status: Authenticate, Cas-Authenticate: %s", destination);
+
+					return HTTP_OK;
+
+				} else {
+					apr_table_add(r->headers_out, "Location", newLocation);
+					return HTTP_MOVED_TEMPORARILY;
+				}
 			} else {
 				return OK;
 			}
@@ -2274,8 +2309,7 @@ int cas_authenticate(request_rec *r)
 
 	if(cookieString == NULL) {
 		/* redirect the user to the CAS server since they have no cookie and no ticket */
-		redirectRequest(r, c);
-		return HTTP_MOVED_TEMPORARILY;
+		return redirectRequest(r, c);
 	} else {
 		if(!ap_is_initial_req(r) && c->CASValidateSAML == FALSE) {
 			/*
@@ -2291,8 +2325,7 @@ int cas_authenticate(request_rec *r)
 			else if (r->prev != NULL)
 				remoteUser = r->prev->user;
 			else {
-				redirectRequest(r, c);
-				return HTTP_MOVED_TEMPORARILY;
+				return redirectRequest(r, c);
 			}
 
 			if (c->CASDebug)
@@ -2328,9 +2361,9 @@ int cas_authenticate(request_rec *r)
 			return OK;
 		} else {
 			/* maybe the cookie expired, have the user get a new service ticket */
-			redirectRequest(r, c);
+			ret_status = redirectRequest(r, c);
 			setCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie), "", ssl, CAS_SESSION_EXPIRE_COOKIE_NOW);
-			return HTTP_MOVED_TEMPORARILY;
+			return ret_status;
 		}
 	}
 
