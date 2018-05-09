@@ -649,7 +649,7 @@ int redirectRequest(request_rec *r, cas_cfg *c)
 
 	if(loginURL == NULL) {
 		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Cannot redirect request (no CASLoginURL)");
-		return;
+		return HTTP_INTERNAL_SERVER_ERROR;
 	}
 
 	destination = apr_pstrcat(r->pool, loginURL, "?service=", service, renew, gateway, method, NULL);
@@ -2286,10 +2286,10 @@ int cas_authenticate(request_rec *r)
 				}
 				if (isAjax(r)) {
 					apr_table_add(r->headers_out, "Cas-Status", "Authenticate");
-					apr_table_add(r->headers_out, "Cas-Authenticate", destination);
+					apr_table_add(r->headers_out, "Cas-Authenticate", newLocation);
 
 					if(c->CASDebug)
-						ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Adding Cas-Status: Authenticate, Cas-Authenticate: %s", destination);
+						ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Adding Cas-Status: Authenticate, Cas-Authenticate: %s", newLocation);
 
 					return HTTP_OK;
 
