@@ -573,7 +573,7 @@ char *getCASMethod(request_rec *r, const cas_cfg *c)
 	}
 	*/
 	if(isAjax(r))
-		rv = "&method=header"
+		rv = "&method=header";
 	return rv;
 }
 
