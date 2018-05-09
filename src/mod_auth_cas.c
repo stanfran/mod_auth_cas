@@ -661,13 +661,13 @@ int redirectRequest(request_rec *r, cas_cfg *c)
 
 	// Ajax requests don't get redirected
 	if (isAjax(r)) {
-		apr_table_set(r->headers_out, "Cas-Status", "Authenticate");
-		apr_table_set(r->headers_out, "Cas-Authenticate", destination);
+		apr_table_set(r->err_headers_out, "Cas-Status", "Authenticate");
+		apr_table_set(r->err_headers_out, "Cas-Authenticate", destination);
 
 		if(c->CASDebug)
 			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Adding Cas-Status: Authenticate, Cas-Authenticate: %s", destination);
 
-		return HTTP_OK;
+		return HTTP_UNAUTHORIZED;
 	}
 
 	// Redirect normally
