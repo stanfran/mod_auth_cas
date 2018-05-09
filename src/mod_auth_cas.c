@@ -563,12 +563,17 @@ char *getCASRenew(request_rec *r)
 
 char *getCASMethod(request_rec *r, const cas_cfg *c)
 {
+
 	char *rv = "";
+	/*
 	char *cas_method = (char *) apr_table_get(r->headers_in, c->CASMethodHeader);
 	
 	if(cas_method != NULL) {
 		rv = apr_pstrcat(r->pool, "&method=", cas_method, NULL);
 	}
+	*/
+	if(isAjax(r))
+		rv = "&method=header"
 	return rv;
 }
 
