@@ -2290,11 +2290,11 @@ int cas_authenticate(request_rec *r)
 #endif
 				}
 				if (isAjax(r)) {
-					apr_table_add(r->headers_out, "Cas-Status", "Authenticate");
-					apr_table_add(r->headers_out, "Cas-Authenticate", newLocation);
+					apr_table_add(r->err_headers_out, "Cas-Status", "Continue");
+					apr_table_add(r->err_headers_out, "Cas-Continue", newLocation);
 
 					if(c->CASDebug)
-						ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Adding Cas-Status: Authenticate, Cas-Authenticate: %s", newLocation);
+						ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Adding Cas-Status: Continue, Cas-Continue: %s", newLocation);
 
 					return HTTP_OK;
 
