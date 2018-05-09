@@ -667,7 +667,7 @@ int redirectRequest(request_rec *r, cas_cfg *c)
 		if(c->CASDebug)
 			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Adding Cas-Status: Authenticate, Cas-Authenticate: %s", destination);
 
-		return HTTP_UNAUTHORIZED;
+		return HTTP_OK;
 	}
 
 	// Redirect normally
