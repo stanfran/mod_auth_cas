@@ -2127,6 +2127,9 @@ int cas_authenticate(request_rec *r)
 			setCASGatewayCookie(r, d->CASGatewayCookie, "TRUE", ssl, CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT);
 			/* IF HAS YAWETAG */
 			cookieString = getCASCookie(r, "HBS_YAWETAG");
+			if(c->CASDebug)
+				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "HBS_YAWETAG: (%s)", cookieString);
+
 			if (cookieString != NULL) {
 				redirectRequest(r, c);
 				return HTTP_MOVED_TEMPORARILY;
