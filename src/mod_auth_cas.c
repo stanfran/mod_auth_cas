@@ -2123,15 +2123,19 @@ int cas_authenticate(request_rec *r)
 		if(cookieString == NULL) { /* they have not made a gateway trip yet */
 			if(c->CASDebug)
 				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Gateway initial access (%s)", r->parsed_uri.path);
+			
 			setCASGatewayCookie(r, d->CASGatewayCookie, "TRUE", ssl, CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT);
-			redirectRequest(r, c);
-			return HTTP_MOVED_TEMPORARILY;
-		} else {
-			if(c->CASDebug)
-				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Gateway anonymous authentication (%s)", r->parsed_uri.path);
-			/* do not set a user, but still allow anonymous access */
-			return OK;
+			/* IF HAS YAWETAG */
+			cookieString = getCASCookie(r, "HBS_YAWETAG");
+			if (cookieString != NULL) {
+				redirectRequest(r, c);
+				return HTTP_MOVED_TEMPORARILY;
+			}
 		}
+		if(c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Gateway anonymous authentication (%s)", r->parsed_uri.path);
+		/* do not set a user, but still allow anonymous access */
+		return OK;
 	}
 
 	/* now, handle when a ticket is present (this will also catch gateway users since ticket != NULL on their trip back) */
