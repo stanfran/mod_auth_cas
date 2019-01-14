@@ -153,6 +153,7 @@ void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 	c->CASCacheCleanInterval = (add->CASCacheCleanInterval != CAS_DEFAULT_CACHE_CLEAN_INTERVAL ? add->CASCacheCleanInterval : base->CASCacheCleanInterval);
 	c->CASCookieDomain = (add->CASCookieDomain != CAS_DEFAULT_COOKIE_DOMAIN ? add->CASCookieDomain : base->CASCookieDomain);
 	c->CASGatewayCookieDomain = (add->CASGatewayCookieDomain != CAS_DEFAULT_GATEWAY_COOKIE_DOMAIN ? add->CASGatewayCookieDomain : base->CASGatewayCookieDomain);
+	c->CASGatewayCheckCookie = (apr_strnatcasecmp(add->CASGatewayCheckCookie, CAS_DEFAULT_GATEWAY_CHECK_COOKIE) != 0 ? add->CASGatewayCheckCookie : base->CASGatewayCheckCookie);
 	c->CASCookieHttpOnly = (add->CASCookieHttpOnly != CAS_DEFAULT_COOKIE_HTTPONLY ? add->CASCookieHttpOnly : base->CASCookieHttpOnly);
 	c->CASSSOEnabled = (add->CASSSOEnabled != CAS_DEFAULT_SSO_ENABLED ? add->CASSSOEnabled : base->CASSSOEnabled);
 	c->CASValidateSAML = (add->CASValidateSAML != CAS_DEFAULT_VALIDATE_SAML ? add->CASValidateSAML : base->CASValidateSAML);
