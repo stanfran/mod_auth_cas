@@ -115,6 +115,7 @@ void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 	c->CASCacheCleanInterval = CAS_DEFAULT_CACHE_CLEAN_INTERVAL;
 	c->CASCookieDomain = CAS_DEFAULT_COOKIE_DOMAIN;
 	c->CASGatewayCookieDomain = CAS_DEFAULT_GATEWAY_COOKIE_DOMAIN;
+	c->CASGatewayCheckCookie = CAS_DEFAULT_GATEWAY_CHECK_COOKIE;
 	c->CASCookieHttpOnly = CAS_DEFAULT_COOKIE_HTTPONLY;
 	c->CASSSOEnabled = CAS_DEFAULT_SSO_ENABLED;
 	c->CASValidateSAML = CAS_DEFAULT_VALIDATE_SAML;
@@ -381,6 +382,27 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 				}
 			}
 			c->CASGatewayCookieDomain = apr_pstrdup(cmd->pool, value);
+		break;
+		case cmd_gateway_check_cookie:
+			/* Limit cookie name to chars allowed by https://tools.ietf.org/html/rfc6265 */
+			limit = strlen(value);
+			for(sz = 0; sz < limit; sz++) {
+				d = value[sz];
+				if( (d < '0' || d > '9') &&
+					(d < 'a' || d > 'z') &&
+					(d < 'A' || d > 'Z') &&
+					d != '!' && d != '#' && 
+					d != '$' && d != '%' &&
+					d != '&' && d != '\'' &&
+					d != '*' && d != '+' &&
+					d != '-' && d != '.' &&
+					d != '^' && d != '_' &&
+					d != '`' && d != '|' &&
+					d != '~' ) {
+						return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid character (%c) in CASGatewayCheckCookie", d));
+				}
+			}
+			c->CASGatewayCheckCookie = apr_pstrdup(cmd->pool, value);
 		break;
 		case cmd_cookie_httponly:
 			if(apr_strnatcasecmp(value, "On") == 0)
@@ -2175,14 +2197,18 @@ int cas_authenticate(request_rec *r)
 			if(c->CASDebug)
 				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Gateway initial access (%s)", r->parsed_uri.path);
 			setCASCookie(r, d->CASGatewayCookie, "TRUE", ssl, CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT, c->CASGatewayCookieDomain);
-			redirectRequest(r, c);
-			return HTTP_MOVED_TEMPORARILY;
-		} else {
-			if(c->CASDebug)
-				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Gateway anonymous authentication (%s)", r->parsed_uri.path);
-			/* do not set a user, but still allow anonymous access */
-			return OK;
-		}
+
+			/* HBS:  if the request has a gateway check cookie then do the gateway redirect */
+			cookieString = getCASCookie(r, c->CASGatewayCheckCookie);
+			if (cookieString != NULL) {
+				redirectRequest(r, c);
+				return HTTP_MOVED_TEMPORARILY;
+			}
+		} 
+		if(c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Gateway anonymous authentication (%s)", r->parsed_uri.path);
+		/* do not set a user, but still allow anonymous access */
+		return OK;
 	}
 
 	/* now, handle when a ticket is present (this will also catch gateway users since ticket != NULL on their trip back) */
@@ -2887,6 +2913,7 @@ const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASCookieEntropy", cfg_readCASParameter, (void *) cmd_cookie_entropy, RSRC_CONF, "Number of random bytes to use when generating a session cookie (larger values may result in slow cookie generation)"),
 	AP_INIT_TAKE1("CASCookieDomain", cfg_readCASParameter, (void *) cmd_cookie_domain, RSRC_CONF, "Specify domain header for mod_auth_cas cookie"),
 	AP_INIT_TAKE1("CASGatewayCookieDomain", cfg_readCASParameter, (void *) cmd_gateway_cookie_domain, RSRC_CONF, "Specify domain header for mod_auth_cas gateway cookie"),
+	AP_INIT_TAKE1("CASGatewayCheckCookie", cfg_readCASParameter, (void *) cmd_gateway_check_cookie, RSRC_CONF, "Define the cookie name for the gateway check cookie"),
 	AP_INIT_TAKE1("CASCookieHttpOnly", cfg_readCASParameter, (void *) cmd_cookie_httponly, RSRC_CONF, "Enable 'HttpOnly' flag for mod_auth_cas cookie (may break RFC compliance)"),
 	AP_INIT_TAKE1("CASCookie", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASCookie), ACCESS_CONF|OR_AUTHCFG, "Define the cookie name for HTTP sessions"),
 	AP_INIT_TAKE1("CASSecureCookie", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASSecureCookie), ACCESS_CONF|OR_AUTHCFG, "Define the cookie name for HTTPS sessions"),

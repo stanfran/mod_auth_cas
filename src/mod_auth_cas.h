@@ -103,6 +103,7 @@
 #define CAS_DEFAULT_SSO_ENABLED FALSE
 #define CAS_DEFAULT_AUTHORITATIVE FALSE
 #define CAS_DEFAULT_PRESERVE_TICKET FALSE
+#define CAS_DEFAULT_GATEWAY_CHECK_COOKIE "HBS_CAS_GATEWAY_CHECK" /* HBS */
 
 #define CAS_MAX_RESPONSE_SIZE 2147483648
 #define CAS_MAX_ERROR_SIZE 1024
@@ -113,6 +114,7 @@
 
 #define CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT -1
 #define CAS_SESSION_EXPIRE_COOKIE_NOW 0
+
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
@@ -135,6 +137,7 @@ typedef struct cas_cfg {
 	char *CASCookiePath;
 	char *CASCookieDomain;
 	char *CASGatewayCookieDomain;
+	char *CASGatewayCheckCookie; /* HBS */
 	char *CASAttributeDelimiter;
 	char *CASAttributePrefix;
 	apr_uri_t CASLoginURL;
@@ -177,7 +180,8 @@ typedef enum {
 	cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy, cmd_session_timeout,
 	cmd_idle_timeout, cmd_cache_interval, cmd_cookie_domain, cmd_cookie_httponly,
 	cmd_sso, cmd_validate_saml, cmd_attribute_delimiter, cmd_attribute_prefix,
-	cmd_root_proxied_as, cmd_authoritative, cmd_preserve_ticket, cmd_gateway_cookie_domain
+	cmd_root_proxied_as, cmd_authoritative, cmd_preserve_ticket, cmd_gateway_cookie_domain,
+	cmd_gateway_check_cookie
 } valid_cmds;
 
 module AP_MODULE_DECLARE_DATA auth_cas_module;
